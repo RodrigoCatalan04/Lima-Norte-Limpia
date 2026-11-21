@@ -1,0 +1,79 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main, test]
+  pull_request:
+    branches: [main, test]
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Build y pruebas
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Lint (ESLint + reglas de seguridad)
+        run: npm run lint
+      - name: Tipos
+        run: npm run typecheck
+      - name: Pruebas automatizadas
+        run: npm test
+      - name: Build
+        run: npm run build
+
+  security:
+    name: Seguridad (SAST, secretos, dependencias)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Auditoría de dependencias
+        run: npm audit --omit=dev --audit-level=critical  # PostCSS embebido en Next 15 (alto, solo en build) se acepta hasta migrar a Next 16
+      - name: Gitleaks (secretos)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: CodeQL init
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+      - name: CodeQL análisis
+        uses: github/codeql-action/analyze@v3
+
+  deploy:
+    name: Despliegue en Vercel
+    needs: [build-test, security]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm i -g vercel@latest
+      - run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
