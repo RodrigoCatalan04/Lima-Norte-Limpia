@@ -16,7 +16,10 @@ export default async function BandejaPage({ searchParams }: { searchParams: Prom
     .limit(100);
   if (status && status in REPORT_STATUS_LABEL) query = query.eq("status", status);
   if (type && REPORT_TYPES.some((t) => t.value === type)) query = query.eq("type", type);
-  const { data: reports } = await query;
+  const { data: raw } = await query;
+  // Orden: primero Nuevo, luego En revisión, luego Atendido; dentro de cada estado, el más reciente primero.
+  const priority: Record<string, number> = { nuevo: 0, en_revision: 1, atendido: 2 };
+  const reports = raw?.slice().sort((a, b) => priority[a.status] - priority[b.status] || +new Date(b.created_at) - +new Date(a.created_at));
 
   return (
     <>

@@ -204,3 +204,27 @@ create policy "pet_photos_select_owner_or_staff" on storage.objects for select t
   using (bucket_id = 'pet-photos' and ((storage.foldername(name))[1] = auth.uid()::text or public.current_role_name() in ('inspector', 'admin')));
 create policy "pet_photos_delete_own" on storage.objects for delete to authenticated
   using (bucket_id = 'pet-photos' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- ===== Sprint 3: consulta del padrón por inspectores (HU09) =====
+-- Función con control de rol y distrito: el inspector solo ve mascotas de su distrito; el admin, todas.
+create or replace function public.pet_lookup(p_code text default null, p_district int default null)
+returns table (code text, name text, species text, breed text, sex text, vaccinated boolean, district_id int, owner_name text, owner_email text)
+language plpgsql stable security definer set search_path = public, auth as $$
+declare r text := public.current_role_name(); d int := public.current_district_id();
+begin
+  if r is null or r not in ('inspector', 'admin') then
+    raise exception 'FORBIDDEN' using errcode = '42501';
+  end if;
+  return query
+    select p.code, p.name, p.species, p.breed, p.sex, p.vaccinated, p.district_id, pr.full_name, u.email::text
+    from public.pets p
+    join public.profiles pr on pr.id = p.owner_id
+    join auth.users u on u.id = p.owner_id
+    where (r = 'admin' or p.district_id = d)
+      and (p_code is null or p.code ilike '%' || p_code || '%')
+      and (p_district is null or p.district_id = p_district)
+    order by p.code
+    limit 50;
+end $$;
+revoke execute on function public.pet_lookup(text, int) from public, anon;
+grant execute on function public.pet_lookup(text, int) to authenticated;
