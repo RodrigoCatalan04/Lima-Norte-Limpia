@@ -228,3 +228,34 @@ begin
 end $$;
 revoke execute on function public.pet_lookup(text, int) from public, anon;
 grant execute on function public.pet_lookup(text, int) to authenticated;
+
+-- ===== Sprint 4: ficha publica por QR (HU08) e indicadores (HU19) =====
+-- Ficha publica: solo nombre, especie y distrito (sin datos personales del dueno).
+create or replace function public.pet_public(p_code text)
+returns table (name text, species text, district_name text)
+language sql stable security definer set search_path = public as $$
+  select p.name, p.species, d.name from public.pets p join public.districts d on d.id = p.district_id where p.code = upper(p_code) limit 1
+$$;
+revoke execute on function public.pet_public(text) from public;
+grant execute on function public.pet_public(text) to anon, authenticated;
+
+-- Indicadores: solo administradores.
+create or replace function public.dashboard_stats(p_from date default null, p_to date default null)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare res jsonb;
+begin
+  if public.current_role_name() is distinct from 'admin' then
+    raise exception 'FORBIDDEN' using errcode = '42501';
+  end if;
+  select jsonb_build_object(
+    'total', (select count(*) from public.reports r where (p_from is null or r.created_at >= p_from) and (p_to is null or r.created_at < p_to + 1)),
+    'atendidos', (select count(*) from public.reports r where r.status = 'atendido' and (p_from is null or r.created_at >= p_from) and (p_to is null or r.created_at < p_to + 1)),
+    'avg_horas_atencion', (select round((avg(extract(epoch from (r.updated_at - r.created_at)) / 3600))::numeric, 1) from public.reports r where r.status = 'atendido' and (p_from is null or r.created_at >= p_from) and (p_to is null or r.created_at < p_to + 1)),
+    'mascotas', (select count(*) from public.pets),
+    'por_distrito', coalesce((select jsonb_agg(jsonb_build_object('nombre', d.name, 'total', (select count(*) from public.reports r where r.district_id = d.id and (p_from is null or r.created_at >= p_from) and (p_to is null or r.created_at < p_to + 1))) order by d.id) from public.districts d), '[]'::jsonb),
+    'por_tipo', coalesce((select jsonb_agg(jsonb_build_object('tipo', t.type, 'total', t.n)) from (select r.type, count(*) n from public.reports r where (p_from is null or r.created_at >= p_from) and (p_to is null or r.created_at < p_to + 1) group by r.type) t), '[]'::jsonb)
+  ) into res;
+  return res;
+end $$;
+revoke execute on function public.dashboard_stats(date, date) from public, anon;
+grant execute on function public.dashboard_stats(date, date) to authenticated;
