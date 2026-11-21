@@ -21,6 +21,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {session && <Link href="/reportes/nuevo">Reportar</Link>}
           {session && <Link href="/mascotas">Mis mascotas</Link>}
           {session && (session.role === "inspector" || session.role === "admin") && <Link href="/inspector">Bandeja</Link>}
+          {session?.role === "admin" && <Link href="/admin/dashboard">Indicadores</Link>}
           {session?.role === "admin" && <Link href="/admin/roles">Usuarios</Link>}
           {session ? (
             <form action={signOut}>

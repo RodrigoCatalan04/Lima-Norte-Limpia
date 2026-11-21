@@ -48,3 +48,20 @@ describe("canCreateReport (límite de reportes por hora)", () => {
     expect(canCreateReport([1, 2, 3, 4].map(minutesAgo).concat(minutesAgo(61), minutesAgo(90)), now)).toBe(true);
   });
 });
+
+describe("Sprint 4: rutas públicas y dashboard", () => {
+  it("la ficha pública de mascota (/mascota/CODIGO) es accesible sin sesión", async () => {
+    const { canAccess } = await import("@/lib/roles");
+    expect(canAccess(null, "/mascota/LNL-0001")).toBe(true);
+  });
+  it("el dashboard solo es para administradores", async () => {
+    const { canAccess } = await import("@/lib/roles");
+    expect(canAccess("admin", "/admin/dashboard")).toBe(true);
+    expect(canAccess("inspector", "/admin/dashboard")).toBe(false);
+    expect(canAccess("vecino", "/admin/dashboard")).toBe(false);
+  });
+  it("el mapa de calor es público", async () => {
+    const { canAccess } = await import("@/lib/roles");
+    expect(canAccess(null, "/mapa")).toBe(true);
+  });
+});

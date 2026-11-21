@@ -103,7 +103,7 @@ export default async function MascotasPage({ searchParams }: { searchParams: Pro
                 <td>{p.vaccinated ? "Sí" : "No"}</td>
                 <td>{new Date(p.updated_at).toLocaleDateString("es-PE")}</td>
                 <td>
-                  <Link href={`/mascotas/${p.id}`}>Editar</Link>{" "}
+                  <Link href={`/mascotas/${p.id}`}>Editar</Link> · <a href={`/mascotas/${p.id}/qr`} download>Descargar QR</a>{" "}
                   <form action={togglePetVaccination}>
                     <input type="hidden" name="petId" value={p.id} />
                     <input type="hidden" name="vaccinated" value={String(p.vaccinated)} />
