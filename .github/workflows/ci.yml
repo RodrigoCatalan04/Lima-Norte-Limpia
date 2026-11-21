@@ -50,7 +50,7 @@ jobs:
       - name: Auditoría de dependencias
         run: npm audit --omit=dev --audit-level=critical  # PostCSS embebido en Next 15 (alto, solo en build) se acepta hasta migrar a Next 16
       - name: Gitleaks (secretos)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: CodeQL init
