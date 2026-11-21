@@ -181,5 +181,14 @@ create policy "photos_select_owner_or_staff" on storage.objects for select to au
     and ((storage.foldername(name))[1] = auth.uid()::text or public.current_role_name() in ('inspector', 'admin'))
   );
 
+-- ===== Endurecimiento de permisos (recomendación del advisor de seguridad de Supabase) =====
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+revoke execute on function public.enforce_report_rate_limit() from public, anon, authenticated;
+revoke execute on function public.current_role_name() from public, anon;
+revoke execute on function public.current_district_id() from public, anon;
+grant execute on function public.current_role_name() to authenticated;
+grant execute on function public.current_district_id() to authenticated;
+-- Nota: la vista report_points es SECURITY DEFINER a propósito: expone solo coordenadas, tipo y estado (sin datos personales) para el mapa público.
+
 -- ===== Para crear el primer administrador (ejecutar una vez, con el correo real) =====
 -- update public.profiles set role = 'admin' where id = (select id from auth.users where email = 'tu-correo@ejemplo.com');
