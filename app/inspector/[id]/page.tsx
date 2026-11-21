@@ -48,6 +48,11 @@ export default async function DetalleReportePage({
           <strong>Estado:</strong> <span className={`badge ${report.status}`}>{REPORT_STATUS_LABEL[report.status]}</span>
         </p>
         {report.description && <p>{report.description}</p>}
+        <iframe
+          title="Ubicación del reporte"
+          style={{ width: "100%", height: 260, border: "1px solid #cbd5e1", borderRadius: 8 }}
+          src={`https://www.openstreetmap.org/export/embed.html?bbox=${report.lng - 0.003}%2C${report.lat - 0.002}%2C${report.lng + 0.003}%2C${report.lat + 0.002}&layer=mapnik&marker=${report.lat}%2C${report.lng}`}
+        />
         <p>
           <a href={mapUrl} target="_blank" rel="noopener noreferrer">Ver ubicación en el mapa ({report.lat.toFixed(5)}, {report.lng.toFixed(5)})</a>
         </p>

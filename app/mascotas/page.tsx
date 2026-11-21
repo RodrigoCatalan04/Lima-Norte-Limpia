@@ -5,8 +5,8 @@ import { DISTRICTS } from "@/lib/validation";
 import { createPet, togglePetVaccination } from "../actions";
 import Link from "next/link";
 
-export default async function MascotasPage({ searchParams }: { searchParams: Promise<{ error?: string; ok?: string; q?: string }> }) {
-  const { error, ok, q } = await searchParams;
+export default async function MascotasPage({ searchParams }: { searchParams: Promise<{ error?: string; ok?: string; q?: string; dist?: string }> }) {
+  const { error, ok, q, dist } = await searchParams;
   const session = await getSessionProfile();
   const supabase = await createClient();
   const isStaff = session!.role === "inspector" || session!.role === "admin";
@@ -25,9 +25,13 @@ export default async function MascotasPage({ searchParams }: { searchParams: Pro
     }
   }
 
-  // HU09: el inspector busca en el padrón de su distrito (RLS lo limita).
+  // HU09: el inspector busca por código o distrito (función con control de rol y distrito en la base de datos).
   const code = (q ?? "").replace(/[^A-Za-z0-9-]/g, "").slice(0, 20);
-  const found = isStaff && code ? (await supabase.from("pets").select("code, name, species, breed, district_id, owner_id").ilike("code", `%${code}%`).limit(20)).data : null;
+  const districtFilter = DISTRICTS.some((d) => d.id === Number(dist)) ? Number(dist) : null;
+  const searched = isStaff && (!!code || districtFilter !== null);
+  const found = searched
+    ? (await supabase.rpc("pet_lookup", { p_code: code || null, p_district: districtFilter })).data
+    : null;
 
   return (
     <>
@@ -120,18 +124,29 @@ export default async function MascotasPage({ searchParams }: { searchParams: Pro
               <label htmlFor="q">Código de mascota</label>
               <input id="q" name="q" defaultValue={code} placeholder="LNL-0001" />
             </div>
+            <div>
+              <label htmlFor="dist">Distrito</label>
+              <select id="dist" name="dist" defaultValue={dist ?? ""}>
+                <option value="">Todos</option>
+                {DISTRICTS.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </div>
             <button className="btn" type="submit" style={{ marginTop: 0 }}>Buscar</button>
           </form>
-          {code && (found?.length ? (
+          {searched && (found?.length ? (
             <table>
-              <thead><tr><th>Código</th><th>Nombre</th><th>Especie</th><th>Distrito</th></tr></thead>
+              <thead><tr><th>Código</th><th>Mascota</th><th>Vacunada</th><th>Distrito</th><th>Dueño</th><th>Contacto</th></tr></thead>
               <tbody>
-                {found.map((p) => (
+                {found.map((p: { code: string; name: string; species: string; breed: string | null; vaccinated: boolean; district_id: number; owner_name: string; owner_email: string }) => (
                   <tr key={p.code}>
                     <td>{p.code}</td>
-                    <td>{p.name}{p.breed ? ` (${p.breed})` : ""}</td>
-                    <td>{p.species}</td>
+                    <td>{p.name} ({p.species}{p.breed ? `, ${p.breed}` : ""})</td>
+                    <td>{p.vaccinated ? "Sí" : "No"}</td>
                     <td>{DISTRICTS.find((d) => d.id === p.district_id)?.name}</td>
+                    <td>{p.owner_name}</td>
+                    <td>{p.owner_email}</td>
                   </tr>
                 ))}
               </tbody>
