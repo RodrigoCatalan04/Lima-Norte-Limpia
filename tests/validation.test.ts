@@ -69,3 +69,21 @@ describe("petSchema", () => {
     expect(petSchema.safeParse({ name: "", species: "perro", sex: "macho", districtId: 3 }).success).toBe(false);
   });
 });
+
+describe("Sprint 2: mascotas (HU06/HU07)", () => {
+  it("acepta una mascota válida y la marca no vacunada por defecto", async () => {
+    const { petSchema } = await import("@/lib/validation");
+    const r = petSchema.safeParse({ name: "Firulais", species: "perro", sex: "macho", districtId: "1" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.vaccinated).toBe(false);
+  });
+  it("rechaza una mascota sin nombre", async () => {
+    const { petSchema } = await import("@/lib/validation");
+    const r = petSchema.safeParse({ name: "  ", species: "perro", sex: "macho", districtId: "1" });
+    expect(r.success).toBe(false);
+  });
+  it("rechaza especie desconocida", async () => {
+    const { petSchema } = await import("@/lib/validation");
+    expect(petSchema.safeParse({ name: "X", species: "dragon", sex: "macho", districtId: "1" }).success).toBe(false);
+  });
+});

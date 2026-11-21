@@ -192,3 +192,15 @@ grant execute on function public.current_district_id() to authenticated;
 
 -- ===== Para crear el primer administrador (ejecutar una vez, con el correo real) =====
 -- update public.profiles set role = 'admin' where id = (select id from auth.users where email = 'tu-correo@ejemplo.com');
+
+-- ===== Sprint 2: foto de mascota (HU06) =====
+alter table public.pets add column if not exists photo_path text;
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('pet-photos', 'pet-photos', false, 5242880, array['image/jpeg', 'image/png'])
+on conflict (id) do nothing;
+create policy "pet_photos_insert_own_folder" on storage.objects for insert to authenticated
+  with check (bucket_id = 'pet-photos' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "pet_photos_select_owner_or_staff" on storage.objects for select to authenticated
+  using (bucket_id = 'pet-photos' and ((storage.foldername(name))[1] = auth.uid()::text or public.current_role_name() in ('inspector', 'admin')));
+create policy "pet_photos_delete_own" on storage.objects for delete to authenticated
+  using (bucket_id = 'pet-photos' and (storage.foldername(name))[1] = auth.uid()::text);

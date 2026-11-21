@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionProfile } from "@/lib/session";
 import { DISTRICTS } from "@/lib/validation";
 import { createPet, togglePetVaccination } from "../actions";
+import Link from "next/link";
 
 export default async function MascotasPage({ searchParams }: { searchParams: Promise<{ error?: string; ok?: string; q?: string }> }) {
   const { error, ok, q } = await searchParams;
@@ -12,9 +13,17 @@ export default async function MascotasPage({ searchParams }: { searchParams: Pro
 
   const { data: mine } = await supabase
     .from("pets")
-    .select("id, code, name, species, breed, sex, vaccinated, district_id")
+    .select("id, code, name, species, breed, sex, vaccinated, district_id, photo_path, updated_at")
     .eq("owner_id", session!.userId)
     .order("created_at", { ascending: false });
+
+  const photoUrls = new Map<string, string>();
+  for (const p of mine ?? []) {
+    if (p.photo_path) {
+      const { data } = await supabase.storage.from("pet-photos").createSignedUrl(p.photo_path, 3600);
+      if (data?.signedUrl) photoUrls.set(p.id, data.signedUrl);
+    }
+  }
 
   // HU09: el inspector busca en el padrón de su distrito (RLS lo limita).
   const code = (q ?? "").replace(/[^A-Za-z0-9-]/g, "").slice(0, 20);
@@ -25,7 +34,7 @@ export default async function MascotasPage({ searchParams }: { searchParams: Pro
       <h1>Mis mascotas</h1>
       <Messages error={error} ok={ok} />
 
-      <form action={createPet} className="card">
+      <form action={createPet} className="card" encType="multipart/form-data">
         <h2>Registrar mascota</h2>
         <div className="grid2">
           <div>
@@ -60,6 +69,8 @@ export default async function MascotasPage({ searchParams }: { searchParams: Pro
             </select>
           </div>
         </div>
+        <label htmlFor="photo">Foto de la mascota (JPG o PNG, máximo 5 MB)</label>
+        <input id="photo" name="photo" type="file" accept="image/jpeg,image/png" />
         <label><input type="checkbox" name="vaccinated" /> Vacunación al día</label>
         <button className="btn" type="submit">Registrar</button>
       </form>
@@ -70,17 +81,25 @@ export default async function MascotasPage({ searchParams }: { searchParams: Pro
       ) : (
         <table>
           <thead>
-            <tr><th>Código</th><th>Nombre</th><th>Especie</th><th>Sexo</th><th>Vacunada</th><th></th></tr>
+            <tr><th>Foto</th><th>Código</th><th>Nombre</th><th>Especie</th><th>Sexo</th><th>Vacunada</th><th>Actualizado</th><th></th></tr>
           </thead>
           <tbody>
             {mine.map((p) => (
               <tr key={p.id}>
+                <td>
+                  {photoUrls.get(p.id) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={photoUrls.get(p.id)} alt={`Foto de ${p.name}`} width={48} height={48} style={{ objectFit: "cover", borderRadius: 8 }} />
+                  ) : "—"}
+                </td>
                 <td><strong>{p.code}</strong></td>
                 <td>{p.name}{p.breed ? ` (${p.breed})` : ""}</td>
                 <td>{p.species}</td>
                 <td>{p.sex}</td>
                 <td>{p.vaccinated ? "Sí" : "No"}</td>
+                <td>{new Date(p.updated_at).toLocaleDateString("es-PE")}</td>
                 <td>
+                  <Link href={`/mascotas/${p.id}`}>Editar</Link>{" "}
                   <form action={togglePetVaccination}>
                     <input type="hidden" name="petId" value={p.id} />
                     <input type="hidden" name="vaccinated" value={String(p.vaccinated)} />
