@@ -64,7 +64,9 @@ export async function signIn(formData: FormData) {
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   // Mensaje genérico: no revela si el correo existe.
   if (error) go("/login", "error", "Correo o contraseña incorrectos");
-  redirect("/reportes");
+  // Cada rol aterriza en su pantalla de trabajo.
+  const session = await getSessionProfile();
+  redirect(session?.role === "admin" ? "/admin/roles" : session?.role === "inspector" ? "/inspector" : "/reportes");
 }
 
 export async function signOut() {
