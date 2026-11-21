@@ -218,6 +218,15 @@ export async function createPet(formData: FormData) {
   if (!parsed.success) go("/mascotas", "error", firstError(parsed.error));
 
   const supabase = await createClient();
+  let photoPath: string | null = null;
+  const photo = formData.get("photo");
+  if (photo instanceof File && photo.size > 0) {
+    const problem = validatePhoto(photo);
+    if (problem) go("/mascotas", "error", problem);
+    photoPath = `${session.userId}/${crypto.randomUUID()}.${photo.type === "image/png" ? "png" : "jpg"}`;
+    const { error: upErr } = await supabase.storage.from("pet-photos").upload(photoPath, photo, { contentType: photo.type });
+    if (upErr) go("/mascotas", "error", "No se pudo subir la foto de la mascota");
+  }
   const { error } = await supabase.from("pets").insert({
     owner_id: session.userId,
     name: parsed.data.name,
@@ -226,10 +235,50 @@ export async function createPet(formData: FormData) {
     sex: parsed.data.sex,
     vaccinated: parsed.data.vaccinated,
     district_id: parsed.data.districtId,
+    photo_path: photoPath,
   });
-  if (error) go("/mascotas", "error", "No se pudo registrar la mascota");
+  if (error) {
+    if (photoPath) await supabase.storage.from("pet-photos").remove([photoPath]);
+    go("/mascotas", "error", "No se pudo registrar la mascota");
+  }
   revalidatePath("/mascotas");
   go("/mascotas", "ok", "Mascota registrada en el padrón");
+}
+
+export async function updatePet(formData: FormData) {
+  const session = await getSessionProfile();
+  if (!session) go("/login", "error", "Inicia sesión");
+  const id = z.string().uuid().safeParse(text(formData, "petId"));
+  if (!id.success) go("/mascotas", "error", "Mascota no válida");
+  const back = `/mascotas/${id.data}`;
+  const parsed = petSchema.safeParse({
+    name: text(formData, "name"),
+    species: text(formData, "species"),
+    breed: text(formData, "breed") || undefined,
+    sex: text(formData, "sex"),
+    vaccinated: formData.get("vaccinated") === "on",
+    districtId: text(formData, "districtId"),
+  });
+  if (!parsed.success) go(back, "error", firstError(parsed.error));
+
+  const supabase = await createClient();
+  // RLS garantiza que solo el dueño pueda modificar su mascota.
+  const { data, error } = await supabase
+    .from("pets")
+    .update({
+      name: parsed.data.name,
+      species: parsed.data.species,
+      breed: parsed.data.breed ?? null,
+      sex: parsed.data.sex,
+      vaccinated: parsed.data.vaccinated,
+      district_id: parsed.data.districtId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id.data)
+    .select("id");
+  if (error || !data?.length) go(back, "error", "No se pudo actualizar la mascota");
+  revalidatePath("/mascotas");
+  go("/mascotas", "ok", "Datos de la mascota actualizados");
 }
 
 export async function togglePetVaccination(formData: FormData) {

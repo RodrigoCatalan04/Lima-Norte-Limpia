@@ -24,7 +24,20 @@ export default function MapPicker() {
   const [flyTarget, setFlyTarget] = useState<Pos | null>(null);
   const [geoMsg, setGeoMsg] = useState("");
 
-  function useMyLocation() {
+  useEffect(() => {
+    // HU10 escenario 2: al abrir el formulario, centra el mapa en la ubicación actual si el usuario lo permite.
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        const here = { lat: p.coords.latitude, lng: p.coords.longitude };
+        setPos(here);
+        setFlyTarget(here);
+      },
+      () => undefined
+    );
+  }, []);
+
+  function locateMe() {
     if (!navigator.geolocation) return setGeoMsg("Tu navegador no permite geolocalización. Marca el punto en el mapa.");
     navigator.geolocation.getCurrentPosition(
       (p) => {
@@ -39,7 +52,7 @@ export default function MapPicker() {
 
   return (
     <div>
-      <button type="button" className="btn secondary" onClick={useMyLocation}>
+      <button type="button" className="btn secondary" onClick={locateMe}>
         Usar mi ubicación actual
       </button>
       {geoMsg && <p className="hint">{geoMsg}</p>}
